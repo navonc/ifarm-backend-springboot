@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.ifarm.common.exception.BusinessException;
 import com.ifarm.entity.AdoptionProject;
+import com.ifarm.entity.ProjectUnit;
 import com.ifarm.mapper.AdoptionProjectMapper;
 import com.ifarm.service.IAdoptionProjectService;
 import com.ifarm.service.ICropService;
@@ -476,29 +477,22 @@ public class AdoptionProjectServiceImpl extends ServiceImpl<AdoptionProjectMappe
             return; // 状态未变更
         }
         
-        boolean validTransition = false;
-        
-        switch (currentStatus) {
-            case 1: // 筹备中
-                validTransition = newStatus == 2 || newStatus == 6;
-                break;
-            case 2: // 认养中
-                validTransition = newStatus == 3 || newStatus == 6;
-                break;
-            case 3: // 种植中
-                validTransition = newStatus == 4 || newStatus == 6;
-                break;
-            case 4: // 收获中
-                validTransition = newStatus == 5 || newStatus == 6;
-                break;
-            case 5: // 已完成
-                validTransition = false; // 已完成状态不能变更
-                break;
-            case 6: // 已取消
-                validTransition = false; // 已取消状态不能变更
-                break;
-        }
-        
+        boolean validTransition = switch (currentStatus) {
+            case 1 -> // 筹备中
+                    newStatus == 2 || newStatus == 6;
+            case 2 -> // 认养中
+                    newStatus == 3 || newStatus == 6;
+            case 3 -> // 种植中
+                    newStatus == 4 || newStatus == 6;
+            case 4 -> // 收获中
+                    newStatus == 5 || newStatus == 6;
+            case 5 -> // 已完成
+                    false; // 已完成状态不能变更
+            case 6 -> // 已取消
+                    false;
+            default -> false; // 已取消状态不能变更
+        };
+
         if (!validTransition) {
             throw new BusinessException("无效的状态流转");
         }
@@ -530,7 +524,7 @@ public class AdoptionProjectServiceImpl extends ServiceImpl<AdoptionProjectMappe
             
             // 更新项目单元状态为种植中
             List<Long> unitIds = projectUnitService.getUnitsByProjectIdAndStatus(projectId, 2)
-                    .stream().map(unit -> unit.getId()).toList();
+                    .stream().map(ProjectUnit::getId).toList();
             
             if (!unitIds.isEmpty()) {
                 projectUnitService.startPlanting(unitIds);
@@ -566,7 +560,7 @@ public class AdoptionProjectServiceImpl extends ServiceImpl<AdoptionProjectMappe
             
             // 更新项目单元状态为已收获
             List<Long> unitIds = projectUnitService.getUnitsByProjectIdAndStatus(projectId, 4)
-                    .stream().map(unit -> unit.getId()).toList();
+                    .stream().map(ProjectUnit::getId).toList();
             
             if (!unitIds.isEmpty()) {
                 projectUnitService.completeHarvest(unitIds);

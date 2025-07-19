@@ -25,6 +25,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -562,7 +563,7 @@ public class AdoptionOrderServiceImpl extends ServiceImpl<AdoptionOrderMapper, A
             List<AdoptionOrder> orders = list(wrapper);
             BigDecimal totalAmount = orders.stream()
                     .map(AdoptionOrder::getActualAmount)
-                    .filter(amount -> amount != null)
+                    .filter(Objects::nonNull)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             
             log.debug("用户{}订单总金额: {}", userId, totalAmount);

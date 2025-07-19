@@ -8,20 +8,16 @@ import com.ifarm.common.exception.BusinessException;
 import com.ifarm.entity.GrowthRecord;
 import com.ifarm.mapper.GrowthRecordMapper;
 import com.ifarm.service.IGrowthRecordService;
-import com.ifarm.service.IAdoptionRecordService;
-import com.ifarm.service.IProjectUnitService;
+import com.ifarm.service.IAdoptionProjectService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * 生长记录服务实现类
@@ -35,8 +31,7 @@ import java.util.Map;
 public class GrowthRecordServiceImpl extends ServiceImpl<GrowthRecordMapper, GrowthRecord> implements IGrowthRecordService {
 
     private final GrowthRecordMapper growthRecordMapper;
-    private final IAdoptionRecordService adoptionRecordService;
-    private final IProjectUnitService projectUnitService;
+    private final IAdoptionProjectService adoptionProjectService;
 
     @Override
     public List<GrowthRecord> getRecordsByProjectId(Long projectId) {
@@ -56,66 +51,67 @@ public class GrowthRecordServiceImpl extends ServiceImpl<GrowthRecordMapper, Gro
     }
 
     @Override
-    public List<GrowthRecord> getRecordsByUnitId(Long unitId) {
-        if (unitId == null) {
-            throw new BusinessException("单元ID不能为空");
+    public List<GrowthRecord> getRecordsByProjectIdAndDateRange(Long projectId, LocalDate startDate, LocalDate endDate) {
+        if (projectId == null) {
+            throw new BusinessException("项目ID不能为空");
         }
         
-        log.debug("根据单元ID查询生长记录列表: {}", unitId);
+        log.debug("根据项目ID和日期范围查询生长记录: projectId={}, startDate={}, endDate={}", projectId, startDate, endDate);
         try {
-            List<GrowthRecord> records = growthRecordMapper.selectByUnitId(unitId);
+            List<GrowthRecord> records = growthRecordMapper.selectByProjectIdAndDateRange(projectId, startDate, endDate);
             log.debug("查询到{}条生长记录", records.size());
             return records;
         } catch (Exception e) {
-            log.error("根据单元ID查询生长记录列表失败，单元ID: {}", unitId, e);
+            log.error("根据项目ID和日期范围查询生长记录失败", e);
+            throw new BusinessException("查询生长记录失败");
+        }
+    }
+
+    @Override
+    public List<GrowthRecord> getRecordsByRecorderId(Long recorderId) {
+        if (recorderId == null) {
+            throw new BusinessException("记录人ID不能为空");
+        }
+        
+        log.debug("根据记录人ID查询生长记录列表: {}", recorderId);
+        try {
+            List<GrowthRecord> records = growthRecordMapper.selectByRecorderId(recorderId);
+            log.debug("查询到{}条生长记录", records.size());
+            return records;
+        } catch (Exception e) {
+            log.error("根据记录人ID查询生长记录列表失败，记录人ID: {}", recorderId, e);
             throw new BusinessException("查询生长记录列表失败");
         }
     }
 
     @Override
-    public List<GrowthRecord> getRecordsByDateRange(Long projectId, LocalDate startDate, LocalDate endDate) {
-        if (projectId == null) {
-            throw new BusinessException("项目ID不能为空");
-        }
-        
-        log.debug("根据日期范围查询生长记录: projectId={}, startDate={}, endDate={}", projectId, startDate, endDate);
-        try {
-            List<GrowthRecord> records = growthRecordMapper.selectByDateRange(projectId, startDate, endDate);
-            log.debug("查询到{}条生长记录", records.size());
-            return records;
-        } catch (Exception e) {
-            log.error("根据日期范围查询生长记录失败", e);
-            throw new BusinessException("查询生长记录失败");
-        }
-    }
-
-    @Override
-    public List<GrowthRecord> getRecordsByGrowthStage(Long projectId, String growthStage) {
-        if (projectId == null || !StringUtils.hasText(growthStage)) {
-            throw new BusinessException("参数不能为空");
-        }
-        
-        log.debug("根据生长阶段查询记录: projectId={}, growthStage={}", projectId, growthStage);
-        try {
-            List<GrowthRecord> records = growthRecordMapper.selectByGrowthStage(projectId, growthStage);
-            log.debug("查询到{}条{}阶段的生长记录", records.size(), growthStage);
-            return records;
-        } catch (Exception e) {
-            log.error("根据生长阶段查询记录失败", e);
-            throw new BusinessException("查询生长记录失败");
-        }
-    }
-
-    @Override
     public IPage<GrowthRecord> getGrowthRecordPage(Page<GrowthRecord> page, Long projectId, 
-                                                  Long unitId, String growthStage) {
-        log.debug("分页查询生长记录: projectId={}, unitId={}, growthStage={}", projectId, unitId, growthStage);
+                                                  String growthStage, LocalDate startDate, LocalDate endDate) {
+        log.debug("分页查询生长记录: projectId={}, growthStage={}, startDate={}, endDate={}", 
+                projectId, growthStage, startDate, endDate);
         try {
-            IPage<GrowthRecord> result = growthRecordMapper.selectGrowthRecordPage(page, projectId, unitId, growthStage);
+            IPage<GrowthRecord> result = growthRecordMapper.selectGrowthRecordPage(page, projectId, growthStage, startDate, endDate);
             log.debug("查询到{}条生长记录", result.getRecords().size());
             return result;
         } catch (Exception e) {
             log.error("分页查询生长记录失败", e);
+            throw new BusinessException("查询生长记录失败");
+        }
+    }
+
+    @Override
+    public List<GrowthRecord> getRecordsByGrowthStage(String growthStage) {
+        if (!StringUtils.hasText(growthStage)) {
+            throw new BusinessException("生长阶段不能为空");
+        }
+        
+        log.debug("根据生长阶段查询记录列表: {}", growthStage);
+        try {
+            List<GrowthRecord> records = growthRecordMapper.selectByGrowthStage(growthStage);
+            log.debug("查询到{}条{}阶段的生长记录", records.size(), growthStage);
+            return records;
+        } catch (Exception e) {
+            log.error("根据生长阶段查询记录列表失败", e);
             throw new BusinessException("查询生长记录失败");
         }
     }
@@ -130,11 +126,12 @@ public class GrowthRecordServiceImpl extends ServiceImpl<GrowthRecordMapper, Gro
         // 验证必填字段
         validateRecordFields(growthRecord);
         
-        log.info("创建生长记录: 项目ID={}, 单元ID={}, 记录日期={}", 
-                growthRecord.getProjectId(), growthRecord.getUnitId(), growthRecord.getRecordDate());
+        log.info("创建生长记录: 项目ID={}, 记录日期={}", growthRecord.getProjectId(), growthRecord.getRecordDate());
         try {
-            // 验证项目和单元是否存在
-            validateRelatedData(growthRecord);
+            // 验证项目是否存在
+            if (adoptionProjectService.getById(growthRecord.getProjectId()) == null) {
+                throw new BusinessException("项目不存在");
+            }
             
             // 设置默认值
             if (growthRecord.getRecordDate() == null) {
@@ -154,39 +151,6 @@ public class GrowthRecordServiceImpl extends ServiceImpl<GrowthRecordMapper, Gro
         } catch (Exception e) {
             log.error("创建生长记录失败", e);
             throw new BusinessException("创建生长记录失败");
-        }
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public boolean batchCreateRecords(List<GrowthRecord> growthRecords) {
-        if (growthRecords == null || growthRecords.isEmpty()) {
-            throw new BusinessException("生长记录列表不能为空");
-        }
-        
-        log.info("批量创建生长记录，数量: {}", growthRecords.size());
-        try {
-            // 验证每条记录
-            for (GrowthRecord record : growthRecords) {
-                validateRecordFields(record);
-                if (record.getRecordDate() == null) {
-                    record.setRecordDate(LocalDate.now());
-                }
-            }
-            
-            boolean result = saveBatch(growthRecords);
-            if (result) {
-                log.info("批量创建生长记录成功，创建{}条记录", growthRecords.size());
-            } else {
-                log.error("批量创建生长记录失败");
-                throw new BusinessException("批量创建生长记录失败");
-            }
-            return result;
-        } catch (BusinessException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("批量创建生长记录失败", e);
-            throw new BusinessException("批量创建生长记录失败");
         }
     }
 
@@ -253,27 +217,17 @@ public class GrowthRecordServiceImpl extends ServiceImpl<GrowthRecordMapper, Gro
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public boolean batchDeleteRecords(List<Long> recordIds) {
-        if (recordIds == null || recordIds.isEmpty()) {
-            throw new BusinessException("记录ID列表不能为空");
+    public GrowthRecord getLatestRecordByProjectId(Long projectId) {
+        if (projectId == null) {
+            throw new BusinessException("项目ID不能为空");
         }
         
-        log.info("批量删除生长记录: IDs={}", recordIds);
+        log.debug("查询项目最新的生长记录: projectId={}", projectId);
         try {
-            boolean result = removeByIds(recordIds);
-            if (result) {
-                log.info("批量删除生长记录成功，删除{}条记录", recordIds.size());
-            } else {
-                log.error("批量删除生长记录失败");
-                throw new BusinessException("批量删除生长记录失败");
-            }
-            return result;
-        } catch (BusinessException e) {
-            throw e;
+            return growthRecordMapper.selectLatestByProjectId(projectId);
         } catch (Exception e) {
-            log.error("批量删除生长记录失败", e);
-            throw new BusinessException("批量删除生长记录失败");
+            log.error("查询项目最新的生长记录失败", e);
+            throw new BusinessException("查询最新生长记录失败");
         }
     }
 
@@ -299,43 +253,6 @@ public class GrowthRecordServiceImpl extends ServiceImpl<GrowthRecordMapper, Gro
     }
 
     @Override
-    public GrowthRecord getLatestRecord(Long unitId) {
-        if (unitId == null) {
-            throw new BusinessException("单元ID不能为空");
-        }
-        
-        log.debug("获取单元最新生长记录: unitId={}", unitId);
-        try {
-            GrowthRecord record = growthRecordMapper.selectLatestByUnitId(unitId);
-            return record;
-        } catch (Exception e) {
-            log.error("获取单元最新生长记录失败", e);
-            throw new BusinessException("获取最新生长记录失败");
-        }
-    }
-
-    @Override
-    public List<GrowthRecord> getGrowthTimeline(Long unitId) {
-        if (unitId == null) {
-            throw new BusinessException("单元ID不能为空");
-        }
-        
-        log.debug("获取单元生长时间线: unitId={}", unitId);
-        try {
-            LambdaQueryWrapper<GrowthRecord> wrapper = new LambdaQueryWrapper<>();
-            wrapper.eq(GrowthRecord::getUnitId, unitId);
-            wrapper.orderByAsc(GrowthRecord::getRecordDate);
-            
-            List<GrowthRecord> records = list(wrapper);
-            log.debug("获取到{}条生长记录", records.size());
-            return records;
-        } catch (Exception e) {
-            log.error("获取单元生长时间线失败", e);
-            throw new BusinessException("获取生长时间线失败");
-        }
-    }
-
-    @Override
     public boolean hasPermission(Long userId, Long recordId) {
         if (userId == null || recordId == null) {
             return false;
@@ -349,8 +266,13 @@ public class GrowthRecordServiceImpl extends ServiceImpl<GrowthRecordMapper, Gro
                 return false;
             }
             
-            // 检查用户是否为该记录所属项目单元的农场主
-            return projectUnitService.hasPermission(userId, record.getUnitId());
+            // 检查用户是否为记录人或项目农场主
+            if (record.getRecorderId() != null && record.getRecorderId().equals(userId)) {
+                return true;
+            }
+            
+            // 检查用户是否为该记录所属项目的农场主
+            return adoptionProjectService.hasPermission(userId, record.getProjectId());
         } catch (Exception e) {
             log.error("检查用户生长记录操作权限失败", e);
             return false;
@@ -358,12 +280,53 @@ public class GrowthRecordServiceImpl extends ServiceImpl<GrowthRecordMapper, Gro
     }
 
     @Override
-    public int countRecordsByProject(Long projectId) {
+    public boolean existsByProjectIdAndDate(Long projectId, LocalDate recordDate, Long excludeId) {
+        if (projectId == null || recordDate == null) {
+            return false;
+        }
+        
+        try {
+            GrowthRecord existingRecord = growthRecordMapper.selectByProjectIdAndDate(projectId, recordDate);
+            if (existingRecord == null) {
+                return false;
+            }
+            
+            // 如果有排除ID，检查是否为同一条记录
+            return !existingRecord.getId().equals(excludeId);
+        } catch (Exception e) {
+            log.error("检查项目日期记录是否存在失败", e);
+            return false;
+        }
+    }
+
+    @Override
+    public int countRecordsByProjectId(Long projectId) {
         if (projectId == null) {
             return 0;
         }
         
         return growthRecordMapper.countByProjectId(projectId);
+    }
+
+    @Override
+    public List<GrowthRecord> getGrowthTimeline(Long projectId) {
+        if (projectId == null) {
+            throw new BusinessException("项目ID不能为空");
+        }
+        
+        log.debug("获取项目生长时间线: projectId={}", projectId);
+        try {
+            LambdaQueryWrapper<GrowthRecord> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(GrowthRecord::getProjectId, projectId);
+            wrapper.orderByAsc(GrowthRecord::getRecordDate);
+            
+            List<GrowthRecord> records = list(wrapper);
+            log.debug("获取到{}条生长记录", records.size());
+            return records;
+        } catch (Exception e) {
+            log.error("获取项目生长时间线失败", e);
+            throw new BusinessException("获取生长时间线失败");
+        }
     }
 
     @Override
@@ -377,19 +340,18 @@ public class GrowthRecordServiceImpl extends ServiceImpl<GrowthRecordMapper, Gro
             Map<String, Object> statistics = new HashMap<>();
             
             // 总记录数
-            statistics.put("totalRecords", countRecordsByProject(projectId));
+            statistics.put("totalRecords", countRecordsByProjectId(projectId));
             
             // 按生长阶段统计
             Map<String, Integer> stageStats = new HashMap<>();
-            stageStats.put("seedling", countRecordsByStage(projectId, "幼苗期"));
-            stageStats.put("growing", countRecordsByStage(projectId, "生长期"));
-            stageStats.put("flowering", countRecordsByStage(projectId, "开花期"));
-            stageStats.put("fruiting", countRecordsByStage(projectId, "结果期"));
-            stageStats.put("mature", countRecordsByStage(projectId, "成熟期"));
+            List<String> stages = getGrowthStages();
+            for (String stage : stages) {
+                stageStats.put(stage, countRecordsByStage(projectId, stage));
+            }
             statistics.put("stageStatistics", stageStats);
             
             // 最近记录时间
-            GrowthRecord latestRecord = getLatestRecordByProject(projectId);
+            GrowthRecord latestRecord = getLatestRecordByProjectId(projectId);
             if (latestRecord != null) {
                 statistics.put("latestRecordDate", latestRecord.getRecordDate());
                 statistics.put("latestGrowthStage", latestRecord.getGrowthStage());
@@ -403,24 +365,92 @@ public class GrowthRecordServiceImpl extends ServiceImpl<GrowthRecordMapper, Gro
     }
 
     @Override
-    public List<GrowthRecord> getRecentRecords(Long projectId, Integer days) {
-        if (projectId == null) {
-            throw new BusinessException("项目ID不能为空");
+    public List<String> getGrowthStages() {
+        log.debug("获取生长阶段列表");
+        // 返回常用的生长阶段列表
+        return Arrays.asList(
+            "播种期", "发芽期", "幼苗期", "生长期", "开花期", "结果期", "成熟期"
+        );
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean batchCreateRecordTemplate(Long projectId, LocalDate startDate, LocalDate endDate, Integer interval) {
+        if (projectId == null || startDate == null || endDate == null || interval == null || interval <= 0) {
+            throw new BusinessException("参数无效");
         }
         
-        if (days == null || days <= 0) {
-            days = 7; // 默认7天
+        if (startDate.isAfter(endDate)) {
+            throw new BusinessException("开始日期不能晚于结束日期");
         }
         
-        log.debug("获取项目最近生长记录: projectId={}, days={}", projectId, days);
+        log.info("批量创建生长记录模板: projectId={}, startDate={}, endDate={}, interval={}", 
+                projectId, startDate, endDate, interval);
         try {
-            LocalDate startDate = LocalDate.now().minusDays(days);
-            LocalDate endDate = LocalDate.now();
+            // 验证项目是否存在
+            if (adoptionProjectService.getById(projectId) == null) {
+                throw new BusinessException("项目不存在");
+            }
             
-            return getRecordsByDateRange(projectId, startDate, endDate);
+            List<GrowthRecord> templates = new ArrayList<>();
+            LocalDate currentDate = startDate;
+            
+            while (!currentDate.isAfter(endDate)) {
+                // 检查当天是否已有记录
+                if (!existsByProjectIdAndDate(projectId, currentDate, null)) {
+                    GrowthRecord template = new GrowthRecord();
+                    template.setProjectId(projectId);
+                    template.setRecordDate(currentDate);
+                    template.setGrowthStage("待记录");
+                    template.setGrowthStatus("待记录");
+                    template.setNotes("模板记录，请及时更新");
+                    
+                    templates.add(template);
+                }
+                
+                currentDate = currentDate.plusDays(interval);
+            }
+            
+            if (templates.isEmpty()) {
+                log.info("指定日期范围内已存在记录，无需创建模板");
+                return true;
+            }
+            
+            boolean result = saveBatch(templates);
+            if (result) {
+                log.info("批量创建生长记录模板成功，创建{}条记录", templates.size());
+            } else {
+                log.error("批量创建生长记录模板失败");
+                throw new BusinessException("批量创建生长记录模板失败");
+            }
+            return result;
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
-            log.error("获取项目最近生长记录失败", e);
-            throw new BusinessException("获取最近生长记录失败");
+            log.error("批量创建生长记录模板失败", e);
+            throw new BusinessException("批量创建生长记录模板失败");
+        }
+    }
+
+    @Override
+    public List<GrowthRecord> getUserViewableRecords(Long userId, Long projectId) {
+        if (userId == null || projectId == null) {
+            throw new BusinessException("参数不能为空");
+        }
+        
+        log.debug("获取用户可查看的生长记录: userId={}, projectId={}", userId, projectId);
+        try {
+            // 检查用户是否有权限查看该项目的记录
+            if (!adoptionProjectService.hasPermission(userId, projectId)) {
+                // 如果不是农场主，只能查看自己记录的
+                return getRecordsByRecorderId(userId);
+            } else {
+                // 如果是农场主，可以查看项目所有记录
+                return getRecordsByProjectId(projectId);
+            }
+        } catch (Exception e) {
+            log.error("获取用户可查看的生长记录失败", e);
+            throw new BusinessException("获取用户可查看的生长记录失败");
         }
     }
 
@@ -432,22 +462,57 @@ public class GrowthRecordServiceImpl extends ServiceImpl<GrowthRecordMapper, Gro
             throw new BusinessException("项目ID不能为空");
         }
         
-        if (record.getUnitId() == null) {
-            throw new BusinessException("单元ID不能为空");
-        }
-        
-        if (!StringUtils.hasText(record.getGrowthStage())) {
-            throw new BusinessException("生长阶段不能为空");
+        if (record.getRecordDate() == null) {
+            throw new BusinessException("记录日期不能为空");
         }
     }
 
-    /**
-     * 验证关联数据是否存在
-     */
-    private void validateRelatedData(GrowthRecord record) {
-        // 验证项目单元是否存在
-        if (projectUnitService.getById(record.getUnitId()) == null) {
-            throw new BusinessException("项目单元不存在");
+    @Override
+    public List<GrowthRecord> getRecordSummary(Long projectId, Integer limit) {
+        if (projectId == null) {
+            throw new BusinessException("项目ID不能为空");
+        }
+
+        Integer queryLimit = limit != null ? limit : 10; // 默认10条
+        log.debug("获取项目生长记录摘要: projectId={}, limit={}", projectId, queryLimit);
+
+        try {
+            LambdaQueryWrapper<GrowthRecord> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(GrowthRecord::getProjectId, projectId);
+            wrapper.orderByDesc(GrowthRecord::getRecordDate);
+            wrapper.last("LIMIT " + queryLimit);
+
+            List<GrowthRecord> records = list(wrapper);
+            log.debug("获取到{}条生长记录摘要", records.size());
+            return records;
+        } catch (Exception e) {
+            log.error("获取项目生长记录摘要失败", e);
+            throw new BusinessException("获取生长记录摘要失败");
+        }
+    }
+
+    @Override
+    public Object exportGrowthRecords(Long projectId, LocalDate startDate, LocalDate endDate) {
+        if (projectId == null) {
+            throw new BusinessException("项目ID不能为空");
+        }
+
+        log.debug("导出生长记录: projectId={}, startDate={}, endDate={}", projectId, startDate, endDate);
+        try {
+            List<GrowthRecord> records = getRecordsByProjectIdAndDateRange(projectId, startDate, endDate);
+
+            Map<String, Object> exportData = new HashMap<>();
+            exportData.put("projectId", projectId);
+            exportData.put("startDate", startDate);
+            exportData.put("endDate", endDate);
+            exportData.put("totalRecords", records.size());
+            exportData.put("records", records);
+            exportData.put("exportTime", LocalDateTime.now());
+
+            return exportData;
+        } catch (Exception e) {
+            log.error("导出生长记录失败", e);
+            throw new BusinessException("导出生长记录失败");
         }
     }
 
@@ -459,18 +524,5 @@ public class GrowthRecordServiceImpl extends ServiceImpl<GrowthRecordMapper, Gro
         wrapper.eq(GrowthRecord::getProjectId, projectId);
         wrapper.eq(GrowthRecord::getGrowthStage, growthStage);
         return Math.toIntExact(count(wrapper));
-    }
-
-    /**
-     * 获取项目最新记录
-     */
-    private GrowthRecord getLatestRecordByProject(Long projectId) {
-        LambdaQueryWrapper<GrowthRecord> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(GrowthRecord::getProjectId, projectId);
-        wrapper.orderByDesc(GrowthRecord::getRecordDate);
-        wrapper.last("LIMIT 1");
-        
-        List<GrowthRecord> records = list(wrapper);
-        return records.isEmpty() ? null : records.get(0);
     }
 }
