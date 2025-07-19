@@ -81,13 +81,6 @@ public class UserAddress implements Serializable {
     private String detailAddress;
 
     /**
-     * 邮政编码
-     */
-    @TableField("postal_code")
-    @Schema(description = "邮政编码", example = "100000")
-    private String postalCode;
-
-    /**
      * 是否默认地址：0-否，1-是
      */
     @TableField("is_default")

@@ -594,8 +594,8 @@ DELIMITER ;
 DELIMITER //
 
 CREATE TRIGGER tr_adoption_order_paid
-AFTER UPDATE ON adoption_orders
-FOR EACH ROW
+    AFTER UPDATE ON adoption_orders
+    FOR EACH ROW
 BEGIN
     DECLARE v_unit_id BIGINT;
     DECLARE v_counter INT DEFAULT 0;
