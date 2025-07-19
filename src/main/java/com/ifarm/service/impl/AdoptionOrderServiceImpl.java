@@ -363,7 +363,7 @@ public class AdoptionOrderServiceImpl extends ServiceImpl<AdoptionOrderMapper, A
             if (result) {
                 // 释放已分配的单元
                 List<AdoptionRecord> records = adoptionRecordService.getRecordsByOrderId(orderId);
-                List<Long> unitIds = records.stream().map(record -> record.getUnitId()).toList();
+                List<Long> unitIds = records.stream().map(AdoptionRecord::getUnitId).toList();
                 
                 if (!unitIds.isEmpty()) {
                     projectUnitService.releaseUnits(unitIds);
