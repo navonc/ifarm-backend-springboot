@@ -40,10 +40,10 @@ public class SwaggerConfig {
                         new Server().url("https://api.ifarm.com").description("生产环境")
                 ))
                 .components(new Components()
-                        .addSecuritySchemes("Bearer Authentication", new SecurityScheme()
+                        .addSecuritySchemes("bearerAuth", new SecurityScheme()
                                 .type(SecurityScheme.Type.HTTP)
                                 .scheme("bearer")
                                 .bearerFormat("JWT")
-                                .description("JWT认证，请在下方输入Bearer {token}")));
+                                .description("JWT认证，请在下方输入Token值（不需要Bearer前缀）")));
     }
 }

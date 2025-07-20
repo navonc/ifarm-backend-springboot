@@ -10,8 +10,8 @@ import com.ifarm.entity.AdoptionRecord;
 import com.ifarm.mapper.AdoptionRecordMapper;
 import com.ifarm.service.IAdoptionOrderService;
 import com.ifarm.service.IAdoptionRecordService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,11 +27,16 @@ import java.util.*;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AdoptionRecordServiceImpl extends ServiceImpl<AdoptionRecordMapper, AdoptionRecord> implements IAdoptionRecordService {
 
     private final AdoptionRecordMapper adoptionRecordMapper;
     private final IAdoptionOrderService adoptionOrderService;
+
+    public AdoptionRecordServiceImpl(AdoptionRecordMapper adoptionRecordMapper,
+                                   @Lazy IAdoptionOrderService adoptionOrderService) {
+        this.adoptionRecordMapper = adoptionRecordMapper;
+        this.adoptionOrderService = adoptionOrderService;
+    }
 
     @Override
     public List<AdoptionRecord> getRecordsByUserId(Long userId) {

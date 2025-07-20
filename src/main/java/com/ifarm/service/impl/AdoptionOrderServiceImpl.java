@@ -13,8 +13,8 @@ import com.ifarm.service.IAdoptionOrderService;
 import com.ifarm.service.IAdoptionProjectService;
 import com.ifarm.service.IAdoptionRecordService;
 import com.ifarm.service.IProjectUnitService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -36,13 +36,22 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AdoptionOrderServiceImpl extends ServiceImpl<AdoptionOrderMapper, AdoptionOrder> implements IAdoptionOrderService {
 
     private final AdoptionOrderMapper adoptionOrderMapper;
     private final IAdoptionProjectService adoptionProjectService;
     private final IProjectUnitService projectUnitService;
     private final IAdoptionRecordService adoptionRecordService;
+
+    public AdoptionOrderServiceImpl(AdoptionOrderMapper adoptionOrderMapper,
+                                   IAdoptionProjectService adoptionProjectService,
+                                   IProjectUnitService projectUnitService,
+                                   @Lazy IAdoptionRecordService adoptionRecordService) {
+        this.adoptionOrderMapper = adoptionOrderMapper;
+        this.adoptionProjectService = adoptionProjectService;
+        this.projectUnitService = projectUnitService;
+        this.adoptionRecordService = adoptionRecordService;
+    }
 
     @Override
     public List<AdoptionOrder> getOrdersByUserId(Long userId) {
