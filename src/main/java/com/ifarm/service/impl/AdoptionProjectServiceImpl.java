@@ -9,6 +9,9 @@ import com.ifarm.dto.adoption.AdoptionProjectCreateDTO;
 import com.ifarm.dto.adoption.AdoptionProjectQueryDTO;
 import com.ifarm.dto.adoption.AdoptionProjectUpdateDTO;
 import com.ifarm.entity.AdoptionProject;
+import com.ifarm.entity.Crop;
+import com.ifarm.entity.Farm;
+import com.ifarm.entity.FarmPlot;
 import com.ifarm.entity.ProjectUnit;
 import com.ifarm.vo.adoption.AdoptionProjectVO;
 import com.ifarm.vo.adoption.ProjectUnitVO;
@@ -16,6 +19,7 @@ import com.ifarm.mapper.AdoptionProjectMapper;
 import com.ifarm.service.IAdoptionProjectService;
 import com.ifarm.service.ICropService;
 import com.ifarm.service.IFarmPlotService;
+import com.ifarm.service.IFarmService;
 import com.ifarm.service.IProjectUnitService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,8 +27,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import org.springframework.beans.BeanUtils;
+
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +52,7 @@ public class AdoptionProjectServiceImpl extends ServiceImpl<AdoptionProjectMappe
     private final IFarmPlotService farmPlotService;
     private final ICropService cropService;
     private final IProjectUnitService projectUnitService;
+    private final IFarmService farmService;
 
     @Override
     public List<AdoptionProject> getProjectsByPlotId(Long plotId) {
@@ -703,49 +712,827 @@ public class AdoptionProjectServiceImpl extends ServiceImpl<AdoptionProjectMappe
 
     @Override
     public IPage<AdoptionProjectVO> getAdoptionProjects(Integer current, Integer size, AdoptionProjectQueryDTO queryDTO) {
-        // TODO: 实现分页查询认养项目列表（VO版本）
-        throw new BusinessException("方法暂未实现");
+        if (current == null || current < 1) {
+            current = 1;
+        }
+        if (size == null || size < 1) {
+            size = 10;
+        }
+
+        log.info("分页查询认养项目: current={}, size={}, queryDTO={}", current, size, queryDTO);
+        try {
+            // 构建查询条件
+            LambdaQueryWrapper<AdoptionProject> wrapper = new LambdaQueryWrapper<>();
+
+            if (queryDTO != null) {
+                // 项目名称模糊查询
+                if (StringUtils.hasText(queryDTO.getName())) {
+                    wrapper.like(AdoptionProject::getName, queryDTO.getName());
+                }
+
+                // 农场ID
+                if (queryDTO.getFarmId() != null) {
+                    // 需要通过地块查询农场ID，这里先跳过
+                    // wrapper.eq(AdoptionProject::getFarmId, queryDTO.getFarmId());
+                }
+
+                // 地块ID
+                if (queryDTO.getPlotId() != null) {
+                    wrapper.eq(AdoptionProject::getPlotId, queryDTO.getPlotId());
+                }
+
+                // 作物ID
+                if (queryDTO.getCropId() != null) {
+                    wrapper.eq(AdoptionProject::getCropId, queryDTO.getCropId());
+                }
+
+                // 项目状态
+                if (queryDTO.getProjectStatus() != null) {
+                    wrapper.eq(AdoptionProject::getProjectStatus, queryDTO.getProjectStatus());
+                }
+
+                // 价格范围
+                if (queryDTO.getMinPrice() != null) {
+                    wrapper.ge(AdoptionProject::getUnitPrice, queryDTO.getMinPrice());
+                }
+                if (queryDTO.getMaxPrice() != null) {
+                    wrapper.le(AdoptionProject::getUnitPrice, queryDTO.getMaxPrice());
+                }
+
+                // 开始时间范围
+                if (queryDTO.getStartTimeBegin() != null) {
+                    wrapper.ge(AdoptionProject::getPlantingDate, queryDTO.getStartTimeBegin().toLocalDate());
+                }
+                if (queryDTO.getStartTimeEnd() != null) {
+                    wrapper.le(AdoptionProject::getPlantingDate, queryDTO.getStartTimeEnd().toLocalDate());
+                }
+
+                // 是否有可用单元
+                if (queryDTO.getHasAvailableUnits() != null && queryDTO.getHasAvailableUnits()) {
+                    wrapper.gt(AdoptionProject::getAvailableUnits, 0);
+                }
+
+                // 关键词搜索
+                if (StringUtils.hasText(queryDTO.getKeyword())) {
+                    wrapper.and(w -> w.like(AdoptionProject::getName, queryDTO.getKeyword())
+                                    .or().like(AdoptionProject::getDescription, queryDTO.getKeyword()));
+                }
+            }
+
+            // 排序
+            if (queryDTO != null && StringUtils.hasText(queryDTO.getSortField())) {
+                boolean isAsc = !"desc".equalsIgnoreCase(queryDTO.getSortOrder());
+                switch (queryDTO.getSortField()) {
+                    case "createTime":
+                        wrapper.orderBy(true, isAsc, AdoptionProject::getCreateTime);
+                        break;
+                    case "adoptionPrice":
+                        wrapper.orderBy(true, isAsc, AdoptionProject::getUnitPrice);
+                        break;
+                    case "totalUnits":
+                        wrapper.orderBy(true, isAsc, AdoptionProject::getTotalUnits);
+                        break;
+                    case "startTime":
+                        wrapper.orderBy(true, isAsc, AdoptionProject::getPlantingDate);
+                        break;
+                    default:
+                        wrapper.orderByDesc(AdoptionProject::getCreateTime);
+                        break;
+                }
+            } else {
+                // 默认按创建时间倒序
+                wrapper.orderByDesc(AdoptionProject::getCreateTime);
+            }
+
+            // 分页查询
+            Page<AdoptionProject> page = new Page<>(current, size);
+            IPage<AdoptionProject> projectPage = page(page, wrapper);
+
+            // 转换为VO
+            IPage<AdoptionProjectVO> voPage = projectPage.convert(this::convertToVO);
+
+            log.info("分页查询认养项目成功: total={}, pages={}", voPage.getTotal(), voPage.getPages());
+            return voPage;
+
+        } catch (Exception e) {
+            log.error("分页查询认养项目失败: current={}, size={}, queryDTO={}", current, size, queryDTO, e);
+            throw new BusinessException("查询认养项目失败");
+        }
     }
 
     @Override
     public AdoptionProjectVO getAdoptionProjectById(Long id) {
-        // TODO: 实现根据ID获取认养项目详情（VO版本）
-        throw new BusinessException("方法暂未实现");
+        if (id == null) {
+            throw new BusinessException("项目ID不能为空");
+        }
+
+        log.info("获取认养项目详情: id={}", id);
+        try {
+            // 查询项目基本信息
+            AdoptionProject project = getById(id);
+            if (project == null) {
+                throw new BusinessException("认养项目不存在");
+            }
+
+            // 转换为VO对象
+            AdoptionProjectVO projectVO = convertToVO(project);
+
+            log.info("获取认养项目详情成功: id={}, name={}", id, project.getName());
+            return projectVO;
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("获取认养项目详情失败: id={}", id, e);
+            throw new BusinessException("获取认养项目详情失败");
+        }
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public AdoptionProjectVO createAdoptionProject(AdoptionProjectCreateDTO createDTO, Long userId) {
-        // TODO: 实现创建认养项目（DTO版本）
-        throw new BusinessException("方法暂未实现");
+        if (createDTO == null) {
+            throw new BusinessException("创建信息不能为空");
+        }
+        if (userId == null) {
+            throw new BusinessException("用户ID不能为空");
+        }
+
+        log.info("创建认养项目: userId={}, createDTO={}", userId, createDTO);
+        try {
+            // 验证地块是否存在且可用
+            FarmPlot plot = farmPlotService.getById(createDTO.getPlotId());
+            if (plot == null) {
+                throw new BusinessException("地块不存在");
+            }
+            if (plot.getStatus() == null || plot.getStatus() != 1) {
+                throw new BusinessException("地块不可用");
+            }
+
+            // 验证作物是否存在
+            Crop crop = cropService.getById(createDTO.getCropId());
+            if (crop == null) {
+                throw new BusinessException("作物不存在");
+            }
+
+            // 验证时间范围
+            if (createDTO.getEndTime().isBefore(createDTO.getStartTime())) {
+                throw new BusinessException("结束时间不能早于开始时间");
+            }
+
+            // 创建认养项目实体
+            AdoptionProject project = new AdoptionProject();
+            BeanUtils.copyProperties(createDTO, project);
+
+            // 处理字段映射
+            project.setPlotId(createDTO.getPlotId());
+            project.setCropId(createDTO.getCropId());
+            project.setUnitPrice(createDTO.getAdoptionPrice());
+            project.setPlantingDate(createDTO.getStartTime().toLocalDate());
+            project.setExpectedHarvestDate(createDTO.getEndTime().toLocalDate());
+            project.setProjectStatus(1); // 默认为草稿状态
+            project.setAvailableUnits(createDTO.getTotalUnits()); // 初始可用单元数等于总单元数
+            project.setCareInstructions(createDTO.getRemark());
+            project.setImages(createDTO.getImages());
+
+            // 保存项目
+            boolean saved = save(project);
+            if (!saved) {
+                throw new BusinessException("创建认养项目失败");
+            }
+
+            // 自动生成项目单元
+            generateProjectUnits(project.getId(), createDTO.getTotalUnits(), createDTO.getUnitArea());
+
+            log.info("创建认养项目成功: projectId={}, name={}", project.getId(), project.getName());
+
+            // 返回VO对象
+            return getAdoptionProjectById(project.getId());
+
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("创建认养项目失败: userId={}, createDTO={}", userId, createDTO, e);
+            throw new BusinessException("创建认养项目失败");
+        }
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public AdoptionProjectVO updateAdoptionProject(Long id, AdoptionProjectUpdateDTO updateDTO, Long userId) {
-        // TODO: 实现更新认养项目（DTO版本）
-        throw new BusinessException("方法暂未实现");
+        if (id == null) {
+            throw new BusinessException("项目ID不能为空");
+        }
+        if (updateDTO == null) {
+            throw new BusinessException("更新信息不能为空");
+        }
+        if (userId == null) {
+            throw new BusinessException("用户ID不能为空");
+        }
+
+        log.info("更新认养项目: id={}, userId={}, updateDTO={}", id, userId, updateDTO);
+        try {
+            // 查询现有项目
+            AdoptionProject existingProject = getById(id);
+            if (existingProject == null) {
+                throw new BusinessException("认养项目不存在");
+            }
+
+            // 检查权限（只有管理员或农场主可以更新）
+            // TODO: 实现更细粒度的权限检查
+
+            // 检查项目状态是否允许更新
+            if (existingProject.getProjectStatus() != null && existingProject.getProjectStatus() > 3) {
+                throw new BusinessException("项目已完成或已取消，不能修改");
+            }
+
+            // 复制更新字段
+            if (StringUtils.hasText(updateDTO.getName())) {
+                existingProject.setName(updateDTO.getName());
+            }
+            if (StringUtils.hasText(updateDTO.getDescription())) {
+                existingProject.setDescription(updateDTO.getDescription());
+            }
+            if (updateDTO.getAdoptionPrice() != null) {
+                existingProject.setUnitPrice(updateDTO.getAdoptionPrice());
+            }
+            if (updateDTO.getTotalUnits() != null) {
+                // 更新总单元数需要特殊处理
+                updateTotalUnits(existingProject, updateDTO.getTotalUnits());
+            }
+            if (updateDTO.getUnitArea() != null) {
+                existingProject.setUnitArea(updateDTO.getUnitArea());
+            }
+            if (updateDTO.getExpectedYield() != null) {
+                existingProject.setExpectedYield(updateDTO.getExpectedYield());
+            }
+            if (updateDTO.getAdoptionDays() != null) {
+                // 根据认养周期更新结束时间
+                if (existingProject.getPlantingDate() != null) {
+                    existingProject.setExpectedHarvestDate(
+                        existingProject.getPlantingDate().plusDays(updateDTO.getAdoptionDays()));
+                }
+            }
+            if (updateDTO.getStartTime() != null) {
+                existingProject.setPlantingDate(updateDTO.getStartTime().toLocalDate());
+            }
+            if (updateDTO.getEndTime() != null) {
+                existingProject.setExpectedHarvestDate(updateDTO.getEndTime().toLocalDate());
+            }
+            if (updateDTO.getProjectStatus() != null) {
+                existingProject.setProjectStatus(updateDTO.getProjectStatus());
+            }
+            if (StringUtils.hasText(updateDTO.getImages())) {
+                existingProject.setImages(updateDTO.getImages());
+            }
+            if (StringUtils.hasText(updateDTO.getTags())) {
+                // 标签可以存储在其他字段或扩展表中，这里暂时跳过
+            }
+            if (StringUtils.hasText(updateDTO.getRemark())) {
+                existingProject.setCareInstructions(updateDTO.getRemark());
+            }
+
+            // 保存更新
+            boolean updated = updateById(existingProject);
+            if (!updated) {
+                throw new BusinessException("更新认养项目失败");
+            }
+
+            log.info("更新认养项目成功: id={}, name={}", id, existingProject.getName());
+
+            // 返回更新后的VO对象
+            return getAdoptionProjectById(id);
+
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("更新认养项目失败: id={}, userId={}, updateDTO={}", id, userId, updateDTO, e);
+            throw new BusinessException("更新认养项目失败");
+        }
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void deleteAdoptionProject(Long id, Long userId) {
-        // TODO: 实现删除认养项目（VO版本）
-        throw new BusinessException("方法暂未实现");
+        if (id == null) {
+            throw new BusinessException("项目ID不能为空");
+        }
+        if (userId == null) {
+            throw new BusinessException("用户ID不能为空");
+        }
+
+        log.info("删除认养项目: id={}, userId={}", id, userId);
+        try {
+            // 查询项目是否存在
+            AdoptionProject project = getById(id);
+            if (project == null) {
+                throw new BusinessException("认养项目不存在");
+            }
+
+            // 检查权限（只有管理员可以删除）
+            // TODO: 实现更细粒度的权限检查
+
+            // 检查项目状态是否允许删除
+            if (project.getProjectStatus() != null && project.getProjectStatus() != 1) {
+                throw new BusinessException("只有草稿状态的项目才能删除");
+            }
+
+            // 检查是否有已认养的单元
+            LambdaQueryWrapper<ProjectUnit> unitWrapper = new LambdaQueryWrapper<>();
+            unitWrapper.eq(ProjectUnit::getProjectId, id)
+                       .eq(ProjectUnit::getUnitStatus, 2); // 2-已认养
+            long adoptedCount = projectUnitService.count(unitWrapper);
+            if (adoptedCount > 0) {
+                throw new BusinessException("项目存在已认养单元，不能删除");
+            }
+
+            // TODO: 检查是否有认养订单等关联数据
+
+            // 删除项目单元
+            LambdaQueryWrapper<ProjectUnit> deleteWrapper = new LambdaQueryWrapper<>();
+            deleteWrapper.eq(ProjectUnit::getProjectId, id);
+            boolean unitsDeleted = projectUnitService.remove(deleteWrapper);
+            if (!unitsDeleted) {
+                log.warn("删除项目单元失败，但继续删除项目: projectId={}", id);
+            }
+
+            // 删除项目
+            boolean projectDeleted = removeById(id);
+            if (!projectDeleted) {
+                throw new BusinessException("删除认养项目失败");
+            }
+
+            log.info("删除认养项目成功: id={}, name={}", id, project.getName());
+
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("删除认养项目失败: id={}, userId={}", id, userId, e);
+            throw new BusinessException("删除认养项目失败");
+        }
     }
 
     @Override
     public List<ProjectUnitVO> getProjectUnits(Long projectId, Integer unitStatus) {
-        // TODO: 实现获取项目单元列表
-        throw new BusinessException("方法暂未实现");
+        if (projectId == null) {
+            throw new BusinessException("项目ID不能为空");
+        }
+
+        log.info("获取项目单元列表: projectId={}, unitStatus={}", projectId, unitStatus);
+        try {
+            // 构建查询条件
+            LambdaQueryWrapper<ProjectUnit> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(ProjectUnit::getProjectId, projectId);
+
+            if (unitStatus != null) {
+                wrapper.eq(ProjectUnit::getUnitStatus, unitStatus);
+            }
+
+            wrapper.orderBy(true, true, ProjectUnit::getUnitNumber);
+
+            List<ProjectUnit> units = projectUnitService.list(wrapper);
+
+            // 转换为VO
+            List<ProjectUnitVO> voList = units.stream()
+                    .map(this::convertUnitToVO)
+                    .collect(java.util.stream.Collectors.toList());
+
+            log.info("获取项目单元列表成功: projectId={}, count={}", projectId, voList.size());
+            return voList;
+
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("获取项目单元列表失败: projectId={}, unitStatus={}", projectId, unitStatus, e);
+            throw new BusinessException("获取项目单元列表失败");
+        }
     }
 
     @Override
     public List<AdoptionProjectVO> getPopularProjectsVO(Integer limit) {
-        // TODO: 实现获取热门认养项目（VO版本）
-        throw new BusinessException("方法暂未实现");
+        if (limit == null || limit <= 0) {
+            limit = 10;
+        }
+
+        log.info("获取热门认养项目: limit={}", limit);
+        try {
+            // 构建查询条件：只查询认养中的项目，按认养率排序
+            LambdaQueryWrapper<AdoptionProject> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(AdoptionProject::getProjectStatus, 2) // 认养中
+                   .gt(AdoptionProject::getTotalUnits, 0) // 有单元的项目
+                   .orderByDesc(AdoptionProject::getTotalUnits, AdoptionProject::getAvailableUnits) // 按认养率排序（总数-可用数）
+                   .orderByDesc(AdoptionProject::getCreateTime) // 再按创建时间排序
+                   .last("LIMIT " + limit);
+
+            List<AdoptionProject> projects = list(wrapper);
+
+            // 转换为VO
+            List<AdoptionProjectVO> voList = projects.stream()
+                    .map(this::convertToVO)
+                    .collect(java.util.stream.Collectors.toList());
+
+            log.info("获取热门认养项目成功: count={}", voList.size());
+            return voList;
+
+        } catch (Exception e) {
+            log.error("获取热门认养项目失败: limit={}", limit, e);
+            throw new BusinessException("获取热门认养项目失败");
+        }
     }
 
     @Override
     public IPage<AdoptionProjectVO> searchAdoptionProjects(Integer current, Integer size, AdoptionProjectQueryDTO queryDTO) {
-        // TODO: 实现搜索认养项目（VO版本）
-        throw new BusinessException("方法暂未实现");
+        // 搜索项目实际上就是带条件的分页查询，直接复用getAdoptionProjects方法
+        return getAdoptionProjects(current, size, queryDTO);
+    }
+
+    // ========== 私有辅助方法 ==========
+
+    /**
+     * 将AdoptionProject实体转换为AdoptionProjectVO
+     */
+    private AdoptionProjectVO convertToVO(AdoptionProject project) {
+        if (project == null) {
+            return null;
+        }
+
+        AdoptionProjectVO vo = new AdoptionProjectVO();
+
+        // 基本信息
+        vo.setId(project.getId());
+        vo.setName(project.getName());
+        vo.setDescription(project.getDescription());
+        vo.setTotalUnits(project.getTotalUnits());
+        vo.setAvailableUnits(project.getAvailableUnits());
+        vo.setAdoptedUnits(project.getTotalUnits() - project.getAvailableUnits());
+        vo.setUnitArea(project.getUnitArea());
+        vo.setAdoptionPrice(project.getUnitPrice());
+        vo.setExpectedYield(project.getExpectedYield());
+        vo.setStartTime(project.getPlantingDate() != null ? project.getPlantingDate().atStartOfDay() : null);
+        vo.setEndTime(project.getExpectedHarvestDate() != null ? project.getExpectedHarvestDate().atStartOfDay() : null);
+        vo.setProjectStatus(project.getProjectStatus());
+        vo.setProjectStatusText(getProjectStatusText(project.getProjectStatus()));
+        vo.setRemark(project.getCareInstructions());
+        vo.setCreateTime(project.getCreateTime());
+        vo.setUpdateTime(project.getUpdateTime());
+
+        // 计算认养进度
+        if (project.getTotalUnits() != null && project.getTotalUnits() > 0) {
+            int adoptedUnits = project.getTotalUnits() - (project.getAvailableUnits() != null ? project.getAvailableUnits() : 0);
+            vo.setAdoptionProgress(BigDecimal.valueOf(adoptedUnits * 100.0 / project.getTotalUnits()).setScale(1, RoundingMode.HALF_UP));
+        } else {
+            vo.setAdoptionProgress(BigDecimal.ZERO);
+        }
+
+        // 判断是否可以认养
+        vo.setCanAdopt(project.getProjectStatus() != null && project.getProjectStatus() == 2 &&
+                      project.getAvailableUnits() != null && project.getAvailableUnits() > 0);
+
+        // 计算剩余认养时间（如果有结束时间）
+        if (project.getExpectedHarvestDate() != null) {
+            long remainingDays = java.time.temporal.ChronoUnit.DAYS.between(
+                LocalDate.now(), project.getExpectedHarvestDate());
+            vo.setRemainingDays(Math.max(0, remainingDays));
+        }
+
+        // 处理图片列表
+        if (StringUtils.hasText(project.getImages())) {
+            try {
+                // 简单的JSON解析，假设是字符串数组格式
+                String images = project.getImages().trim();
+                if (images.startsWith("[") && images.endsWith("]")) {
+                    images = images.substring(1, images.length() - 1);
+                    String[] imageArray = images.split(",");
+                    List<String> imageList = new ArrayList<>();
+                    for (String img : imageArray) {
+                        String cleanImg = img.trim().replaceAll("\"", "");
+                        if (StringUtils.hasText(cleanImg)) {
+                            imageList.add(cleanImg);
+                        }
+                    }
+                    vo.setImages(imageList);
+                }
+            } catch (Exception e) {
+                log.warn("解析项目图片失败: projectId={}, images={}", project.getId(), project.getImages(), e);
+                vo.setImages(new ArrayList<>());
+            }
+        } else {
+            vo.setImages(new ArrayList<>());
+        }
+
+        // 处理标签列表（暂时设置为空，后续可以从其他字段获取）
+        vo.setTags(new ArrayList<>());
+
+        // 查询关联信息
+        try {
+            // 查询地块信息
+            if (project.getPlotId() != null) {
+                FarmPlot plot = farmPlotService.getById(project.getPlotId());
+                if (plot != null) {
+                    vo.setPlot(convertPlotToVO(plot));
+
+                    // 通过地块查询农场信息
+                    if (plot.getFarmId() != null) {
+                        Farm farm = farmService.getById(plot.getFarmId());
+                        if (farm != null) {
+                            vo.setFarm(convertFarmToVO(farm));
+                        }
+                    }
+                }
+            }
+
+            // 查询作物信息
+            if (project.getCropId() != null) {
+                Crop crop = cropService.getById(project.getCropId());
+                if (crop != null) {
+                    vo.setCrop(convertCropToVO(crop));
+                }
+            }
+        } catch (Exception e) {
+            log.warn("查询项目关联信息失败: projectId={}", project.getId(), e);
+        }
+
+        return vo;
+    }
+
+    /**
+     * 获取项目状态文本
+     */
+    private String getProjectStatusText(Integer status) {
+        if (status == null) {
+            return "未知";
+        }
+        switch (status) {
+            case 1: return "草稿";
+            case 2: return "认养中";
+            case 3: return "已满员";
+            case 4: return "进行中";
+            case 5: return "已完成";
+            case 6: return "已取消";
+            default: return "未知";
+        }
+    }
+
+    /**
+     * 转换地块为VO
+     */
+    private com.ifarm.vo.farmplot.FarmPlotVO convertPlotToVO(FarmPlot plot) {
+        if (plot == null) {
+            return null;
+        }
+
+        com.ifarm.vo.farmplot.FarmPlotVO vo = new com.ifarm.vo.farmplot.FarmPlotVO();
+        BeanUtils.copyProperties(plot, vo);
+
+        // 处理字段名不匹配的情况
+        vo.setPlotName(plot.getName());
+        vo.setLocation(plot.getLocationInfo());
+        vo.setEnabled(plot.getStatus() != null && plot.getStatus() == 1);
+        vo.setPlotStatus(plot.getStatus());
+        vo.setPlotStatusName(getPlotStatusText(plot.getStatus()));
+
+        return vo;
+    }
+
+    /**
+     * 转换农场为VO
+     */
+    private com.ifarm.vo.farm.FarmVO convertFarmToVO(Farm farm) {
+        if (farm == null) {
+            return null;
+        }
+
+        com.ifarm.vo.farm.FarmVO vo = new com.ifarm.vo.farm.FarmVO();
+        BeanUtils.copyProperties(farm, vo);
+
+        // 处理字段名不匹配的情况
+        vo.setFarmName(farm.getName());
+        vo.setArea(farm.getTotalArea());
+        vo.setFarmImage(farm.getCoverImage());
+        vo.setEnabled(farm.getStatus() != null && farm.getStatus() == 1);
+        vo.setCertificationInfo(farm.getCertification());
+
+        return vo;
+    }
+
+    /**
+     * 转换作物为VO
+     */
+    private com.ifarm.vo.crop.CropVO convertCropToVO(Crop crop) {
+        if (crop == null) {
+            return null;
+        }
+
+        com.ifarm.vo.crop.CropVO vo = new com.ifarm.vo.crop.CropVO();
+        BeanUtils.copyProperties(crop, vo);
+
+        // 处理字段名不匹配的情况
+        vo.setCropName(crop.getName());
+
+        return vo;
+    }
+
+    /**
+     * 获取地块状态文本
+     */
+    private String getPlotStatusText(Integer status) {
+        if (status == null) {
+            return "未知";
+        }
+        switch (status) {
+            case 1: return "空闲";
+            case 2: return "种植中";
+            case 3: return "收获中";
+            case 4: return "休耕";
+            default: return "未知";
+        }
+    }
+
+    /**
+     * 自动生成项目单元
+     */
+    private void generateProjectUnits(Long projectId, Integer totalUnits, BigDecimal unitArea) {
+        if (projectId == null || totalUnits == null || totalUnits <= 0) {
+            return;
+        }
+
+        log.info("开始生成项目单元: projectId={}, totalUnits={}", projectId, totalUnits);
+        try {
+            List<ProjectUnit> units = new ArrayList<>();
+            for (int i = 1; i <= totalUnits; i++) {
+                ProjectUnit unit = new ProjectUnit();
+                unit.setProjectId(projectId);
+                unit.setUnitNumber(String.format("P%d-%03d", projectId, i));
+                unit.setUnitStatus(1); // 1-可认养
+
+                // 设置位置信息（包含单元面积）
+                int row = (i - 1) / 10 + 1; // 每行10个单元
+                int col = (i - 1) % 10 + 1;
+                String locationInfo = String.format(
+                    "{\"row\": %d, \"column\": %d, \"coordinates\": \"%c%d\", \"unitArea\": %s}",
+                    row, col, (char)('A' + row - 1), col, unitArea.toString());
+                unit.setLocationInfo(locationInfo);
+
+                units.add(unit);
+            }
+
+            // 批量保存单元
+            boolean saved = projectUnitService.saveBatch(units);
+            if (!saved) {
+                throw new BusinessException("生成项目单元失败");
+            }
+
+            log.info("生成项目单元成功: projectId={}, count={}", projectId, units.size());
+        } catch (Exception e) {
+            log.error("生成项目单元失败: projectId={}, totalUnits={}", projectId, totalUnits, e);
+            throw new BusinessException("生成项目单元失败");
+        }
+    }
+
+    /**
+     * 转换项目单元为VO
+     */
+    private ProjectUnitVO convertUnitToVO(ProjectUnit unit) {
+        if (unit == null) {
+            return null;
+        }
+
+        ProjectUnitVO vo = new ProjectUnitVO();
+        BeanUtils.copyProperties(unit, vo);
+
+        // 处理状态文本
+        vo.setUnitStatusText(getUnitStatusText(unit.getUnitStatus()));
+
+        // 从locationInfo中解析单元面积
+        if (StringUtils.hasText(unit.getLocationInfo())) {
+            try {
+                // 简单的JSON解析，提取unitArea
+                String locationInfo = unit.getLocationInfo();
+                if (locationInfo.contains("\"unitArea\"")) {
+                    String[] parts = locationInfo.split("\"unitArea\":");
+                    if (parts.length > 1) {
+                        String areaStr = parts[1].trim().replaceAll("[}\"\\s]", "");
+                        if (areaStr.contains(",")) {
+                            areaStr = areaStr.substring(0, areaStr.indexOf(","));
+                        }
+                        vo.setUnitArea(new BigDecimal(areaStr));
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("解析单元面积失败: unitId={}, locationInfo={}", unit.getId(), unit.getLocationInfo(), e);
+            }
+        }
+
+        // TODO: 查询认养用户信息（如果已认养）
+        // 这里需要查询认养记录表来获取认养用户信息
+
+        return vo;
+    }
+
+    /**
+     * 获取单元状态文本
+     */
+    private String getUnitStatusText(Integer status) {
+        if (status == null) {
+            return "未知";
+        }
+        switch (status) {
+            case 1: return "可认养";
+            case 2: return "已认养";
+            case 3: return "种植中";
+            case 4: return "待收获";
+            case 5: return "已收获";
+            default: return "未知";
+        }
+    }
+
+    /**
+     * 更新项目总单元数
+     */
+    private void updateTotalUnits(AdoptionProject project, Integer newTotalUnits) {
+        if (project == null || newTotalUnits == null || newTotalUnits <= 0) {
+            return;
+        }
+
+        Integer currentTotalUnits = project.getTotalUnits();
+        if (currentTotalUnits == null) {
+            currentTotalUnits = 0;
+        }
+
+        log.info("更新项目总单元数: projectId={}, 当前={}, 新值={}", project.getId(), currentTotalUnits, newTotalUnits);
+
+        try {
+            if (newTotalUnits > currentTotalUnits) {
+                // 增加单元数：生成新的单元
+                int additionalUnits = newTotalUnits - currentTotalUnits;
+                List<ProjectUnit> newUnits = new ArrayList<>();
+
+                for (int i = currentTotalUnits + 1; i <= newTotalUnits; i++) {
+                    ProjectUnit unit = new ProjectUnit();
+                    unit.setProjectId(project.getId());
+                    unit.setUnitNumber(String.format("P%d-%03d", project.getId(), i));
+                    unit.setUnitStatus(1); // 1-可认养
+
+                    // 设置位置信息
+                    int row = (i - 1) / 10 + 1;
+                    int col = (i - 1) % 10 + 1;
+                    String locationInfo = String.format(
+                        "{\"row\": %d, \"column\": %d, \"coordinates\": \"%c%d\", \"unitArea\": %s}",
+                        row, col, (char)('A' + row - 1), col, project.getUnitArea().toString());
+                    unit.setLocationInfo(locationInfo);
+
+                    newUnits.add(unit);
+                }
+
+                // 批量保存新单元
+                boolean saved = projectUnitService.saveBatch(newUnits);
+                if (!saved) {
+                    throw new BusinessException("生成新增单元失败");
+                }
+
+                // 更新可用单元数
+                project.setAvailableUnits(project.getAvailableUnits() + additionalUnits);
+
+                log.info("增加项目单元成功: projectId={}, 新增{}个单元", project.getId(), additionalUnits);
+
+            } else if (newTotalUnits < currentTotalUnits) {
+                // 减少单元数：删除多余的单元（只能删除未认养的单元）
+                int unitsToRemove = currentTotalUnits - newTotalUnits;
+
+                // 查询可删除的单元（状态为1-可认养的单元）
+                LambdaQueryWrapper<ProjectUnit> wrapper = new LambdaQueryWrapper<>();
+                wrapper.eq(ProjectUnit::getProjectId, project.getId())
+                       .eq(ProjectUnit::getUnitStatus, 1) // 只删除可认养的单元
+                       .orderByDesc(ProjectUnit::getUnitNumber) // 从后往前删除
+                       .last("LIMIT " + unitsToRemove);
+
+                List<ProjectUnit> unitsToDelete = projectUnitService.list(wrapper);
+                if (unitsToDelete.size() < unitsToRemove) {
+                    throw new BusinessException("无法减少单元数，部分单元已被认养");
+                }
+
+                // 删除单元
+                List<Long> unitIds = unitsToDelete.stream()
+                        .map(ProjectUnit::getId)
+                        .collect(java.util.stream.Collectors.toList());
+                boolean deleted = projectUnitService.removeByIds(unitIds);
+                if (!deleted) {
+                    throw new BusinessException("删除多余单元失败");
+                }
+
+                // 更新可用单元数
+                project.setAvailableUnits(project.getAvailableUnits() - unitsToRemove);
+
+                log.info("减少项目单元成功: projectId={}, 删除{}个单元", project.getId(), unitsToRemove);
+            }
+
+            // 更新总单元数
+            project.setTotalUnits(newTotalUnits);
+
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("更新项目总单元数失败: projectId={}, newTotalUnits={}", project.getId(), newTotalUnits, e);
+            throw new BusinessException("更新项目总单元数失败");
+        }
     }
 }
