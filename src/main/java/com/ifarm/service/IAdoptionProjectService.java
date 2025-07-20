@@ -3,7 +3,12 @@ package com.ifarm.service;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.ifarm.dto.adoption.AdoptionProjectCreateDTO;
+import com.ifarm.dto.adoption.AdoptionProjectQueryDTO;
+import com.ifarm.dto.adoption.AdoptionProjectUpdateDTO;
 import com.ifarm.entity.AdoptionProject;
+import com.ifarm.vo.adoption.AdoptionProjectVO;
+import com.ifarm.vo.adoption.ProjectUnitVO;
 
 import java.util.List;
 
@@ -187,9 +192,83 @@ public interface IAdoptionProjectService extends IService<AdoptionProject> {
 
     /**
      * 完成项目
-     * 
+     *
      * @param projectId 项目ID
      * @return 操作结果
      */
     boolean completeProject(Long projectId);
+
+    // ========== 新增的DTO/VO相关方法 ==========
+
+    /**
+     * 分页查询认养项目列表（VO版本）
+     *
+     * @param current 页码
+     * @param size 每页大小
+     * @param queryDTO 查询条件
+     * @return 分页结果
+     */
+    IPage<AdoptionProjectVO> getAdoptionProjects(Integer current, Integer size, AdoptionProjectQueryDTO queryDTO);
+
+    /**
+     * 根据ID获取认养项目详情（VO版本）
+     *
+     * @param id 项目ID
+     * @return 项目详情
+     */
+    AdoptionProjectVO getAdoptionProjectById(Long id);
+
+    /**
+     * 创建认养项目（DTO版本）
+     *
+     * @param createDTO 创建信息
+     * @param userId 创建用户ID
+     * @return 创建的项目信息
+     */
+    AdoptionProjectVO createAdoptionProject(AdoptionProjectCreateDTO createDTO, Long userId);
+
+    /**
+     * 更新认养项目（DTO版本）
+     *
+     * @param id 项目ID
+     * @param updateDTO 更新信息
+     * @param userId 操作用户ID
+     * @return 更新后的项目信息
+     */
+    AdoptionProjectVO updateAdoptionProject(Long id, AdoptionProjectUpdateDTO updateDTO, Long userId);
+
+    /**
+     * 删除认养项目（VO版本）
+     *
+     * @param id 项目ID
+     * @param userId 操作用户ID
+     */
+    void deleteAdoptionProject(Long id, Long userId);
+
+    /**
+     * 获取项目单元列表
+     *
+     * @param projectId 项目ID
+     * @param unitStatus 单元状态筛选
+     * @return 单元列表
+     */
+    List<ProjectUnitVO> getProjectUnits(Long projectId, Integer unitStatus);
+
+    /**
+     * 获取热门认养项目（VO版本）
+     *
+     * @param limit 返回数量
+     * @return 热门项目列表
+     */
+    List<AdoptionProjectVO> getPopularProjectsVO(Integer limit);
+
+    /**
+     * 搜索认养项目（VO版本）
+     *
+     * @param current 页码
+     * @param size 每页大小
+     * @param queryDTO 搜索条件
+     * @return 搜索结果
+     */
+    IPage<AdoptionProjectVO> searchAdoptionProjects(Integer current, Integer size, AdoptionProjectQueryDTO queryDTO);
 }

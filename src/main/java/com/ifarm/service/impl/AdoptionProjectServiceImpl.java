@@ -5,8 +5,13 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.ifarm.common.exception.BusinessException;
+import com.ifarm.dto.adoption.AdoptionProjectCreateDTO;
+import com.ifarm.dto.adoption.AdoptionProjectQueryDTO;
+import com.ifarm.dto.adoption.AdoptionProjectUpdateDTO;
 import com.ifarm.entity.AdoptionProject;
 import com.ifarm.entity.ProjectUnit;
+import com.ifarm.vo.adoption.AdoptionProjectVO;
+import com.ifarm.vo.adoption.ProjectUnitVO;
 import com.ifarm.mapper.AdoptionProjectMapper;
 import com.ifarm.service.IAdoptionProjectService;
 import com.ifarm.service.ICropService;
@@ -692,5 +697,55 @@ public class AdoptionProjectServiceImpl extends ServiceImpl<AdoptionProjectMappe
             log.error("检查用户项目操作权限失败", e);
             return false;
         }
+    }
+
+    // ========== 新增的DTO/VO相关方法实现 ==========
+
+    @Override
+    public IPage<AdoptionProjectVO> getAdoptionProjects(Integer current, Integer size, AdoptionProjectQueryDTO queryDTO) {
+        // TODO: 实现分页查询认养项目列表（VO版本）
+        throw new BusinessException("方法暂未实现");
+    }
+
+    @Override
+    public AdoptionProjectVO getAdoptionProjectById(Long id) {
+        // TODO: 实现根据ID获取认养项目详情（VO版本）
+        throw new BusinessException("方法暂未实现");
+    }
+
+    @Override
+    public AdoptionProjectVO createAdoptionProject(AdoptionProjectCreateDTO createDTO, Long userId) {
+        // TODO: 实现创建认养项目（DTO版本）
+        throw new BusinessException("方法暂未实现");
+    }
+
+    @Override
+    public AdoptionProjectVO updateAdoptionProject(Long id, AdoptionProjectUpdateDTO updateDTO, Long userId) {
+        // TODO: 实现更新认养项目（DTO版本）
+        throw new BusinessException("方法暂未实现");
+    }
+
+    @Override
+    public void deleteAdoptionProject(Long id, Long userId) {
+        // TODO: 实现删除认养项目（VO版本）
+        throw new BusinessException("方法暂未实现");
+    }
+
+    @Override
+    public List<ProjectUnitVO> getProjectUnits(Long projectId, Integer unitStatus) {
+        // TODO: 实现获取项目单元列表
+        throw new BusinessException("方法暂未实现");
+    }
+
+    @Override
+    public List<AdoptionProjectVO> getPopularProjectsVO(Integer limit) {
+        // TODO: 实现获取热门认养项目（VO版本）
+        throw new BusinessException("方法暂未实现");
+    }
+
+    @Override
+    public IPage<AdoptionProjectVO> searchAdoptionProjects(Integer current, Integer size, AdoptionProjectQueryDTO queryDTO) {
+        // TODO: 实现搜索认养项目（VO版本）
+        throw new BusinessException("方法暂未实现");
     }
 }
