@@ -5,6 +5,7 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
 import org.springframework.context.annotation.Bean;
@@ -40,10 +41,12 @@ public class SwaggerConfig {
                         new Server().url("https://api.ifarm.com").description("生产环境")
                 ))
                 .components(new Components()
-                        .addSecuritySchemes("bearerAuth", new SecurityScheme()
+                        .addSecuritySchemes("Authorization", new SecurityScheme()
                                 .type(SecurityScheme.Type.HTTP)
                                 .scheme("bearer")
                                 .bearerFormat("JWT")
-                                .description("JWT认证，请在下方输入Token值（不需要Bearer前缀）")));
+                                .description("JWT认证，请在下方输入Token值（不需要Bearer前缀）")))
+                // 添加全局SecurityRequirement，所有接口默认需要认证
+                .addSecurityItem(new SecurityRequirement().addList("Authorization"));
     }
 }
