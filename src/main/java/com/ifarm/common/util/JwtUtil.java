@@ -34,7 +34,7 @@ public class JwtUtil {
 
     /**
      * 生成访问token
-     * 
+     *
      * @param userId 用户ID
      * @param username 用户名
      * @return JWT token
@@ -43,6 +43,23 @@ public class JwtUtil {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", userId);
         claims.put("username", username);
+        claims.put("type", "access");
+        return generateToken(claims, expiration);
+    }
+
+    /**
+     * 生成访问token（包含用户类型）
+     *
+     * @param userId 用户ID
+     * @param username 用户名
+     * @param userType 用户类型
+     * @return JWT token
+     */
+    public String generateAccessToken(Long userId, String username, Integer userType) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("userId", userId);
+        claims.put("username", username);
+        claims.put("userType", userType);
         claims.put("type", "access");
         return generateToken(claims, expiration);
     }
@@ -94,13 +111,27 @@ public class JwtUtil {
 
     /**
      * 从token中获取用户名
-     * 
+     *
      * @param token JWT token
      * @return 用户名
      */
     public String getUsernameFromToken(String token) {
         Claims claims = getClaimsFromToken(token);
         return claims != null ? claims.get("username").toString() : null;
+    }
+
+    /**
+     * 从token中获取用户类型
+     *
+     * @param token JWT token
+     * @return 用户类型
+     */
+    public Integer getUserTypeFromToken(String token) {
+        Claims claims = getClaimsFromToken(token);
+        if (claims != null && claims.get("userType") != null) {
+            return Integer.valueOf(claims.get("userType").toString());
+        }
+        return null;
     }
 
     /**

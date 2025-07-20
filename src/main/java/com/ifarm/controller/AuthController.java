@@ -77,7 +77,6 @@ public class AuthController {
      */
     @PostMapping("/logout")
     @Operation(summary = "退出登录", description = "用户退出登录")
-    @SecurityRequirement(name = "Bearer Authentication")
     public Result<Void> logout(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
         String token = jwtUtil.extractTokenFromHeader(authHeader);
@@ -93,7 +92,7 @@ public class AuthController {
      */
     @GetMapping("/profile")
     @Operation(summary = "获取当前用户信息", description = "获取当前登录用户的详细信息")
-    @SecurityRequirement(name = "Bearer Authentication")
+    @SecurityRequirement(name = "Authorization")
     public Result<UserVO> getCurrentUserProfile(Authentication authentication) {
         Long userId = (Long) authentication.getPrincipal();
         log.info("获取用户信息请求: userId={}", userId);
@@ -106,7 +105,7 @@ public class AuthController {
      */
     @PutMapping("/profile")
     @Operation(summary = "更新用户信息", description = "更新当前登录用户的基本信息")
-    @SecurityRequirement(name = "Bearer Authentication")
+    @SecurityRequirement(name = "Authorization")
     public Result<UserVO> updateUserProfile(
             Authentication authentication,
             @Valid @RequestBody ProfileUpdateDTO profileUpdateDTO) {
@@ -122,7 +121,7 @@ public class AuthController {
      */
     @PutMapping("/password")
     @Operation(summary = "修改密码", description = "修改当前登录用户的密码")
-    @SecurityRequirement(name = "Bearer Authentication")
+    @SecurityRequirement(name = "Authorization")
     public Result<Void> changePassword(
             Authentication authentication,
             @Valid @RequestBody PasswordChangeDTO passwordChangeDTO) {
@@ -137,7 +136,7 @@ public class AuthController {
      */
     @GetMapping("/validate")
     @Operation(summary = "验证Token", description = "验证当前Token是否有效")
-    @SecurityRequirement(name = "Bearer Authentication")
+    @SecurityRequirement(name = "Authorization")
     public Result<Boolean> validateToken(
             @Parameter(description = "用户ID", hidden = true) Authentication authentication) {
         Long userId = (Long) authentication.getPrincipal();

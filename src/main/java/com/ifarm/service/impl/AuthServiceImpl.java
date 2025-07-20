@@ -58,8 +58,8 @@ public class AuthServiceImpl implements IAuthService {
         // 更新最后登录时间
         userService.updateLastLoginTime(user.getId());
 
-        // 生成token
-        String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getUsername());
+        // 生成token（包含用户类型）
+        String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getUsername(), user.getUserType());
         String refreshToken = jwtUtil.generateRefreshToken(user.getId(), user.getUsername());
 
         // 构建响应
@@ -164,8 +164,8 @@ public class AuthServiceImpl implements IAuthService {
             throw new BusinessException(ResultCode.USER_DISABLED, "用户已被禁用");
         }
 
-        // 生成新的token
-        String newAccessToken = jwtUtil.generateAccessToken(userId, username);
+        // 生成新的token（包含用户类型）
+        String newAccessToken = jwtUtil.generateAccessToken(userId, username, user.getUserType());
         String newRefreshToken = jwtUtil.generateRefreshToken(userId, username);
 
         // 构建响应
